@@ -1,0 +1,15 @@
+{
+    "name": "com.ubuntu.developer.username.gchat",
+    "description": "description of gchat",
+    "framework": "ubuntu-sdk-14.04-qml-dev1",
+    "architecture": "all",
+    "title": "gchat",
+    "hooks": {
+        "gchat": {
+            "apparmor": "gchat.json",
+            "desktop": "gchat.desktop"
+        }
+    },
+    "version": "0.1",
+    "maintainer": ""
+}

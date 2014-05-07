@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=gchat
+Exec=/usr/bin/qmlscene $@ /usr/share/gchat/gchat.qml
+Icon=qmlscene
+Terminal=false
+Type=Application
+X-Ubuntu-Touch=true
