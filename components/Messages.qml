@@ -2,7 +2,7 @@ import QtQuick 2.0
 
 
 ListView {
-    objectName: "messages"
+    objectName: "messageView"
     id: messages
     spacing: 1
     property int maxWidth

@@ -43,6 +43,23 @@ Column {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             inputMethodHints: Qt.ImhDigitsOnly
+            KeyNavigation.tab:resource
+        }
+    }
+
+    Item {
+        width: parent.width
+        height: 40
+        Text {
+            text: "Resource"
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+        }
+        TextField {
+            objectName: "resource"
+            id: resource
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
             KeyNavigation.tab:proxyServerAddr
         }
     }
@@ -133,6 +150,23 @@ Column {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             inputMethodHints: Qt.ImhDigitsOnly
+        }
+    }
+
+    Item {
+        width: parent.width
+        height: 40
+
+        Text {
+            text: "Auto Login"
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+        }
+        Switch {
+            objectName: "autoLogin"
+            id: autoLogin
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
         }
     }
 }

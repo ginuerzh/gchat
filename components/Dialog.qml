@@ -1,7 +1,7 @@
 import QtQuick 2.0
 
 ListView {
-    objectName: "dialog"
+    objectName: "dialogView"
     id: dialog
     property int maxWidth
     property string jid

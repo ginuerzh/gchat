@@ -1,7 +1,7 @@
 import QtQuick 2.0
 
 ListView {
-    objectName: "buddies"
+    objectName: "buddyView"
     id: buddylist
     spacing: 1
     signal selected(string jid, string name)

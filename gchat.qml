@@ -46,7 +46,7 @@ MainView {
 
                     Login {
                         id: login
-                        anchors.centerIn: parent
+                        anchors.horizontalCenter: parent.horizontalCenter
                     }
 
                     function logined(ok, username, result) {
@@ -65,9 +65,7 @@ MainView {
                 title: i18n.tr("Preferences")
                 Page {
                     objectName: "preferencePage"
-                    Preference {
-
-                    }
+                    Preference {}
                 }
             }
         }

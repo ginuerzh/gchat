@@ -7,7 +7,18 @@ Column {
     id: loginView
     spacing: 10
     property bool logining
-    signal login(string username, string password, bool remember)
+    signal login(string username, string password, string status)
+
+    Item {
+        width: parent.width
+        height: 200
+        Image {
+            anchors.centerIn: parent
+            width: 100
+            height: 100
+            source: "../XMPP_logo.svg"
+        }
+    }
 
     Column {
         spacing: 5
@@ -27,7 +38,7 @@ Column {
             onAccepted: {
                 if (usernameInput.text.length > 0 && passwordInput.text.length > 0) {
                     loginView.logining = true
-                    loginView.login(usernameInput.text, passwordInput.text, rememberPass.checked)
+                    loginView.login(usernameInput.text, passwordInput.text, "chat")
                 }
             }
         }
@@ -49,7 +60,7 @@ Column {
             onAccepted: {
                 if (usernameInput.text.length > 0 && passwordInput.text.length > 0) {
                     loginView.logining = true
-                    loginView.login(usernameInput.text, passwordInput.text, rememberPass.checked)
+                    loginView.login(usernameInput.text, passwordInput.text, "chat")
                 }
             }
         }
@@ -59,7 +70,8 @@ Column {
         spacing: 15
         Row {
             CheckBox {
-                id: rememberPass
+                objectName: "savePass"
+                id: savePass
             }
             Label{
                 anchors.verticalCenter: parent.verticalCenter
@@ -78,7 +90,7 @@ Column {
                 onClicked: {
                     if (usernameInput.text.length > 0 && passwordInput.text.length > 0) {
                         loginView.logining = true
-                        loginView.login(usernameInput.text, passwordInput.text, rememberPass.checked)
+                        loginView.login(usernameInput.text, passwordInput.text, "chat")
                     }
                 }
             }
