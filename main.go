@@ -330,14 +330,15 @@ func createClient(server, username, password, proxy string, oldTLS, debug bool) 
 			case xmpp.NSClient + " status":
 				buddy.Status = e.(*core.PresenceStatus).Status
 			case xmpp.NSVcardUpdate + " x":
-				buddy.Avatar = e.(*xep.VCardUpdate).Photo
-				if len(buddy.Avatar) > 0 {
-					path := dataPath + "/" + xmppClient.Jid.Bare() + "/avatar"
-					if matchs, _ := filepath.Glob(path + "/" + buddy.Avatar + ".*"); len(matchs) > 0 {
-						//fmt.Println("avatar exists", buddy.Avatar)
-						buddy.Avatar = matchs[0]
-						continue
-					}
+				avatar := e.(*xep.VCardUpdate).Photo
+				if len(avatar) == 0 {
+					continue
+				}
+				path := dataPath + "/" + xmppClient.Jid.Bare() + "/avatar"
+				if matchs, _ := filepath.Glob(path + "/" + avatar + ".*"); len(matchs) > 0 {
+					//fmt.Println("avatar exists", buddy.Avatar)
+					buddy.Avatar = matchs[0]
+					continue
 				}
 				cli.Send(xmpp.NewIQ("get", client.GenId(), xmpp.ToJID(header.From).Bare(), &xep.VCard{}))
 			}
