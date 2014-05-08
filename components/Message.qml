@@ -27,32 +27,31 @@ Rectangle {
 
         Column {
             spacing: 5
-            width: maxWidth - avatarIcon.width - time.width - 25
+            width: maxWidth - avatarIcon.width - 25
 
-            Text {
+            Item {
                 width: parent.width
-                elide: Text.ElideRight
-                text: user
-                font.bold: message.unread
-                font.pointSize: 14
+                height: childrenRect.height
+
+                Text {
+                    anchors.left: parent.left
+                    elide: Text.ElideRight
+                    text: user
+                    font.bold: message.unread
+                    font.pointSize: 14
+                }
+
+                Text {
+                    text: timestamp
+                    anchors.right: parent.right
+                    anchors.leftMargin: 5
+                }
             }
             Text {
                 width: parent.width
                 elide: Text.ElideRight
                 text: msgText
                 font.bold: message.unread
-            }
-        }
-        Rectangle {
-            id: time
-            anchors.verticalCenter: parent.verticalCenter
-            width: 50
-            height: childrenRect.height
-
-            Text {
-                text: timestamp
-                anchors.right: parent.right
-                anchors.leftMargin: 5
             }
         }
     }
