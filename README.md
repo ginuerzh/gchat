@@ -18,4 +18,5 @@ golang环境请参考golang官网：golang.org
 $ go get github.com/ginuerzh/gchat
 
 $ cd gchat/proj/dir
+
 $ go run main.go
