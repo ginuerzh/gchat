@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -64,11 +65,9 @@ func Decrypt(hexStr string) ([]byte, error) {
 	mode := cipher.NewCBCDecrypter(block, iv)
 	mode.CryptBlocks(ciphertext, ciphertext)
 
-	for i, v := range ciphertext {
-		if v == 0 {
-			ciphertext = ciphertext[:i] // trim suffix padding
-			break
-		}
+	// trim suffix padding byte 0
+	if index := bytes.IndexByte(ciphertext, 0); index > 0 {
+		ciphertext = ciphertext[:index]
 	}
 
 	return ciphertext, nil

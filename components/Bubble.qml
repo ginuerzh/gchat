@@ -23,7 +23,7 @@ Item {
 
     Rectangle {
         id: rect
-        anchors.top: avatarIcon.top
+        anchors.top: bubble.top
         Text {
             id: text_field
             text: bubble.text
@@ -53,11 +53,12 @@ Item {
     Component.onCompleted: {
         if (floatRight == true) {
             avatarIcon.anchors.right = bubble.right
+            avatarIcon.anchors.bottom = bubble.bottom
             rect.anchors.right = avatarIcon.left
         } else {
             avatarIcon.anchors.left = bubble.left
             rect.anchors.left = avatarIcon.right
-            rect.color = "palegreen"
+            rect.color = "aquamarine"
         }
     }
 }

@@ -12,43 +12,49 @@ Rectangle {
     signal clicked()
 
     Row {
-        spacing: 10
+        spacing: 5
         anchors.verticalCenter: parent.verticalCenter
+
         Rectangle {
             id: avatarIcon
-            height: message.height - 10
-            width: height + 5
+            height: message.height
+            width: height
             Image {
                 anchors.fill: parent
-                anchors.leftMargin: 5
+                anchors.margins: 5
                 source: avatar
             }
         }
 
         Column {
             spacing: 5
-            width: maxWidth - avatarIcon.width - 25
+            width: maxWidth - avatarIcon.width - 5
 
-            Item {
+            Rectangle {
                 width: parent.width
-                height: childrenRect.height
-
+                height: 30
                 Text {
                     anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - timeField.width - 5
                     elide: Text.ElideRight
                     text: user
                     font.bold: message.unread
-                    font.pointSize: 14
                 }
 
                 Text {
+                    id: timeField
                     text: timestamp
                     anchors.right: parent.right
-                    anchors.leftMargin: 5
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.rightMargin: 5
+                    font.bold: message.unread
                 }
             }
+
             Text {
                 width: parent.width
+                maximumLineCount: 1
                 elide: Text.ElideRight
                 text: msgText
                 font.bold: message.unread

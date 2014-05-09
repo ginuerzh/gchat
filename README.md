@@ -9,7 +9,7 @@ xmpp im client for ubuntu touch
 此应用依赖于ubuntu-sdk和golang
 所以请先安装以上两个必品：
 
-$ sudo apt-get install ubuntu-sdk
+$ sudo apt-get install ubuntu-sdk qtbase5-private-dev qtdeclarative5-private-dev libqt5opengl5-dev
 
 golang环境请参考golang官网：golang.org
 

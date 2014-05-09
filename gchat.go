@@ -2,7 +2,7 @@
 package main
 
 import (
-	"crypto/sha1"
+	//"crypto/sha1"
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
@@ -30,15 +30,21 @@ const (
 	ShowUnavail
 )
 
+func init() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+}
+
 type Buddy struct {
-	Jid    string
-	Name   string
-	Avatar string
-	Group  string
-	groups []string
-	Show   int
-	shows  map[string]int
-	Status string
+	Jid        string
+	Name       string
+	Avatar     string
+	avatarHash string
+	Group      string
+	groups     []string
+	Show       int
+	shows      map[string]int
+	Status     string
+	Dialog     *Dialog
 }
 
 func NewBuddy(jid, name string, groups []string) *Buddy {
@@ -51,6 +57,7 @@ func NewBuddy(jid, name string, groups []string) *Buddy {
 		groups: groups,
 		Show:   ShowUnavail,
 		shows:  make(map[string]int),
+		Dialog: NewDialog(jid),
 	}
 }
 
@@ -81,25 +88,17 @@ func (l *BuddyList) Buddy(jid string) *Buddy {
 	return l.buddies[xmpp.ToJID(jid).Bare()]
 }
 
-type Message struct {
-	Jid    string
-	Name   string
-	Text   string
-	Time   string
-	Avatar string
-	Unread bool
-}
-
 type Chat struct {
 	client *client.Client
 	config *Config
 	dir    string
 
+	engine *qml.Engine
 	window *qml.Window
 
 	buddies *BuddyList
 	user    *Buddy
-	dialogs map[string][]*Message
+	//dialogs map[string][]*Message
 
 	pLock *sync.Mutex // mutex lock for presence
 	cLock *sync.Mutex // mutex lock for card
@@ -123,9 +122,49 @@ func NewChat(dataDir string, config *Config) *Chat {
 	}
 }
 
-func (chat *Chat) Init() {
+func (chat *Chat) Init(user *Buddy) {
+	chat.user = user
 	chat.buddies = NewBuddyList()
-	chat.dialogs = make(map[string][]*Message)
+
+	if err := os.MkdirAll(chat.MessagePath(), os.ModePerm); err != nil {
+		fmt.Println(err)
+	}
+	if err := os.MkdirAll(chat.AvatarPath(), os.ModePerm); err != nil {
+		fmt.Println(err)
+	}
+}
+
+func (chat *Chat) MessagePath() string {
+	return chat.dir + "/" + chat.user.Jid + "/messages"
+}
+
+func (chat *Chat) AvatarPath() string {
+	return chat.dir + "/" + chat.user.Jid + "/avatars"
+}
+
+func (chat *Chat) AvatarFile(jid string) (name string, hash string) {
+	avatars, err := filepath.Glob(chat.AvatarPath() + "/" + jid + "*")
+	if err != nil {
+		log.Println(err)
+	}
+	if len(avatars) == 0 {
+		return
+	}
+	avatar := avatars[0]
+	a := strings.SplitN(filepath.Base(avatar), " ", 2)
+	if len(a) != 2 {
+		return
+	}
+	a = strings.SplitN(a[1], ".", 2)
+	if len(a) != 2 {
+		return
+	}
+
+	return avatar, a[0]
+}
+
+func (chat *Chat) MessageFile(jid string) string {
+	return chat.MessagePath() + "/" + xmpp.ToJID(jid).Bare() + ".json"
 }
 
 func (chat *Chat) ObjectByName(objectName string) qml.Object {
@@ -148,8 +187,10 @@ func (chat *Chat) LoadConfig() {
 	chat.config.Server = addr + ":" + port
 
 	chat.config.Resource = chat.ObjectByName("resource").String("text")
-	chat.config.UseOldTLS = chat.ObjectByName("sslSwitch").Bool("checked")
+	chat.config.NoTLS = !chat.ObjectByName("sslSwitch").Bool("checked")
+	chat.config.Proxy = ""
 	chat.config.EnableProxy = chat.ObjectByName("proxySwitch").Bool("checked")
+
 	if chat.config.EnableProxy {
 		chat.config.UseSysProxy = chat.ObjectByName("sysProxySwitch").Bool("checked")
 		if chat.config.UseSysProxy {
@@ -183,7 +224,10 @@ func (chat *Chat) LoadConfig() {
 	if err := chat.config.Save(chat.dir + "/chat.conf"); err != nil {
 		log.Println(err)
 	}
-
+	log.Println("server:", chat.config.Server,
+		"proxy:", chat.config.Proxy,
+		"username:", chat.config.Username,
+		"notls:", chat.config.NoTLS)
 }
 
 func (chat *Chat) restoreConfig() {
@@ -197,7 +241,7 @@ func (chat *Chat) restoreConfig() {
 		}
 	}
 	chat.ObjectByName("resource").Set("text", chat.config.Resource)
-	chat.ObjectByName("sslSwitch").Set("checked", chat.config.UseOldTLS)
+	chat.ObjectByName("sslSwitch").Set("checked", !chat.config.NoTLS)
 
 	chat.ObjectByName("proxySwitch").Set("checked", chat.config.EnableProxy)
 	chat.ObjectByName("sysProxySwitch").Set("checked", chat.config.UseSysProxy)
@@ -226,26 +270,38 @@ func (chat *Chat) restoreConfig() {
 		"proxy:", chat.config.Proxy,
 		"username:", chat.config.Username,
 		"password:", password,
-		"oldTLS:", chat.config.UseOldTLS)
+		"notls:", chat.config.NoTLS)
 }
 
 func (chat *Chat) addBubble(jid string, bubble *Message) {
-	chat.dialogs[jid] = append(chat.dialogs[jid], bubble)
+	buddy := chat.buddies.Buddy(jid)
+
+	filename := chat.MessageFile(xmpp.ToJID(jid).Bare())
+	if err := buddy.Dialog.Append(filename, bubble); err != nil {
+		log.Println(err)
+	}
+
+	if bubble.Jid == chat.user.Jid {
+		buddy = chat.user
+	}
 
 	dialogView := chat.ObjectByName("dialogView")
 	if dialogView.String("jid") == jid {
-		dialogView.Call("addBubble", bubble)
+		dialogView.Call("addBubble", buddy, bubble)
 	}
 }
 
-func (chat *Chat) addMessage(msg *Message) {
-	chat.ObjectByName("messageView").Call("addMessage", msg)
+func (chat *Chat) addMessage(buddy *Buddy, msg *Message) {
+	if buddy == nil || msg == nil {
+		return
+	}
+	chat.ObjectByName("messageView").Call("addMessage", buddy, msg)
 }
 
 func (chat *Chat) Run() error {
 	qml.Init(nil)
-	engine := qml.NewEngine()
-	component, err := engine.LoadFile("gchat.qml")
+	chat.engine = qml.NewEngine()
+	component, err := chat.engine.LoadFile("gchat.qml")
 	if err != nil {
 		return err
 	}
@@ -258,7 +314,6 @@ func (chat *Chat) Run() error {
 		if len(username) == 0 || len(password) == 0 {
 			return
 		}
-
 		chat.login(username, password, status)
 	})
 
@@ -268,19 +323,25 @@ func (chat *Chat) Run() error {
 
 	dialogView := chat.ObjectByName("dialogView")
 	dialogView.On("loaded", func(jid string) {
-		for _, bubble := range chat.dialogs[xmpp.ToJID(jid).Bare()] {
-			dialogView.Call("addBubble", bubble)
+		buddy := chat.buddies.Buddy(jid)
+		for _, bubble := range buddy.Dialog.Messages {
+			if bubble.Jid == jid {
+				dialogView.Call("addBubble", buddy, bubble)
+			} else {
+				dialogView.Call("addBubble", chat.user, bubble)
+			}
 		}
 	})
 
 	chat.ObjectByName("sendConfirm").On("sended", func(jid, text string) {
 		chat.client.Send(xmpp.NewMessage("chat", jid, text, ""))
-		chat.addBubble(jid, &Message{
-			Jid:    chat.user.Jid,
-			Text:   text,
-			Time:   time.Now().Format("15:04"),
-			Avatar: chat.user.Avatar,
-		})
+		msg := &Message{
+			Jid:  chat.user.Jid,
+			Text: text,
+			Time: time.Now(),
+		}
+		chat.addBubble(jid, msg)
+		chat.addMessage(chat.buddies.Buddy(jid), msg)
 	})
 
 	// handle Auto login
@@ -304,7 +365,7 @@ func (chat *Chat) login(username, password string, status string) {
 	cli := client.NewClient(chat.config.Server, username, password,
 		&client.Options{
 			Debug:     chat.config.EnableDebug,
-			NoTLS:     !chat.config.UseOldTLS,
+			NoTLS:     chat.config.NoTLS,
 			Proxy:     chat.config.Proxy,
 			Resource:  chat.config.Resource,
 			TlsConfig: &tls.Config{InsecureSkipVerify: true}})
@@ -318,9 +379,10 @@ func (chat *Chat) login(username, password string, status string) {
 			return
 		}
 
-		chat.Init()
-		chat.user = NewBuddy(cli.Jid.Bare(), "", nil)
-		chat.user.Show = showPriv(status)
+		user := NewBuddy(cli.Jid.Bare(), "", nil)
+		user.Show = showPriv(status)
+		chat.Init(user)
+		chat.engine.Context().SetVar("loginUser", user)
 
 		chat.ObjectByName("buddyView").Call("setUser", chat.user)
 		chat.ObjectByName("loginPage").Call("logined", true, chat.user.Name, "")
@@ -332,10 +394,15 @@ func (chat *Chat) login(username, password string, status string) {
 		cli.Send(xmpp.NewIQ("get", client.GenId(), "", &xep.VCard{}))
 	})
 
+	cli.OnError(func(err error) {
+		log.Println(err)
+	})
+
 	cli.HandleFunc(xmpp.NSRoster+" query", func(header *core.StanzaHeader, e xmpp.Element) {
 		if header.Types != "result" {
 			return
 		}
+
 		//fmt.Println(e)
 		for _, item := range e.(*core.RosterQuery).Items {
 			if item.Jid == cli.Jid.Bare() {
@@ -343,6 +410,14 @@ func (chat *Chat) login(username, password string, status string) {
 			}
 
 			buddy := NewBuddy(item.Jid, item.Name, item.Group)
+			buddy.Avatar, buddy.avatarHash = chat.AvatarFile(item.Jid)
+
+			buddy.Dialog.Load(chat.MessageFile(item.Jid))
+
+			if len(buddy.Dialog.Messages) > 0 {
+				chat.addMessage(buddy, buddy.Dialog.Messages[len(buddy.Dialog.Messages)-1])
+			}
+
 			chat.buddies.Add(buddy)
 		}
 
@@ -376,17 +451,15 @@ func (chat *Chat) login(username, password string, status string) {
 		if len(body) > 0 {
 			msg := &Message{
 				Jid:    xmpp.ToJID(header.From).Bare(),
-				Name:   chat.buddies.Buddy(header.From).Name,
 				Text:   body,
-				Time:   time.Now().Format("15:04"),
-				Avatar: chat.buddies.Buddy(header.From).Avatar,
+				Time:   time.Now(),
 				Unread: true,
 			}
 			if chat.ObjectByName("dialogView").Bool("show") {
 				msg.Unread = false
 			}
 			chat.addBubble(msg.Jid, msg)
-			chat.addMessage(msg)
+			chat.addMessage(chat.buddies.Buddy(msg.Jid), msg)
 		}
 	})
 
@@ -404,17 +477,13 @@ func (chat *Chat) login(username, password string, status string) {
 			case xmpp.NSClient + " status":
 				buddy.Status = e.(*core.PresenceStatus).Status
 			case xmpp.NSVcardUpdate + " x":
-				avatar := e.(*xep.VCardUpdate).Photo
-				if len(avatar) == 0 {
+				hash := e.(*xep.VCardUpdate).Photo
+				if len(hash) == 0 || buddy.avatarHash == hash {
 					continue
 				}
-				path := chat.dir + "/" + cli.Jid.Bare() + "/avatar"
-				if matchs, _ := filepath.Glob(path + "/" + avatar + ".*"); len(matchs) > 0 {
-					//fmt.Println("avatar exists", buddy.Avatar)
-					buddy.Avatar = matchs[0]
-					continue
-				}
-				cli.Send(xmpp.NewIQ("get", client.GenId(), xmpp.ToJID(header.From).Bare(), &xep.VCard{}))
+
+				buddy.avatarHash = hash
+				cli.Send(xmpp.NewIQ("get", client.GenId(), buddy.Jid, &xep.VCard{}))
 			}
 		}
 		if show == 0 {
@@ -448,35 +517,29 @@ func (chat *Chat) login(username, password string, status string) {
 			return
 		}
 
-		h := sha1.New()
-		h.Write(data)
-		hex := fmt.Sprintf("%x", h.Sum(nil))
-
-		path := chat.dir + "/" + cli.Jid.Bare() + "/avatar"
-		if err := os.MkdirAll(path, os.ModePerm); err != nil {
-			fmt.Println(err)
-			return
+		buddy := chat.buddies.Buddy(header.From)
+		if len(header.From) == 0 {
+			buddy = chat.user
 		}
-		filename := path + "/" + hex + ".jpg"
-		//fmt.Println(filename)
+
+		filename := chat.AvatarPath() + "/" + buddy.Jid + " " + buddy.avatarHash + ".jpg"
 		if err := ioutil.WriteFile(filename, data, os.ModePerm); err != nil {
+			buddy.avatarHash = ""
 			fmt.Println(err)
 			return
 		}
 
-		if buddy := chat.buddies.Buddy(header.From); buddy != nil {
-			buddy.Avatar = filename
+		buddy.Avatar = filename
+		if len(card.FName) > 0 {
+			buddy.Name = card.FName
+		}
 
+		if len(header.From) == 0 {
+			chat.ObjectByName("buddyView").Call("setUser", buddy)
+		} else {
 			chat.cLock.Lock()
 			chat.ObjectByName("buddyView").Call("updateBuddy", buddy)
 			chat.cLock.Unlock()
-		}
-		if len(header.From) == 0 {
-			chat.user.Avatar = filename
-			if len(card.FName) > 0 {
-				chat.user.Name = card.FName
-			}
-			chat.ObjectByName("buddyView").Call("setUser", chat.user)
 		}
 	})
 	go cli.Run()

@@ -76,7 +76,6 @@ Column {
         Switch {
             objectName: "sslSwitch"
             id: sslSwitch
-            checked: true
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
         }

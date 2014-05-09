@@ -23,18 +23,18 @@ ListView {
 
     model: ListModel{}
 
-    function addMessage(msg) {
+    function addMessage(user, msg) {
         for (var i = 0; i < model.count; i++) {
-            if (model.get(i).jid === msg.jid) {
+            if (model.get(i).jid === user.jid) {
                 model.remove(i)
                 break
             }
         }
-        model.insert(0, {"jid":msg.jid,
-                         "name": msg.name,
-                         "time": msg.time,
+        model.insert(0, {"jid":user.jid,
+                         "name": user.name,
+                         "time": msg.time.format("15:04"),
                          "msgText": msg.text,
-                         "avatarSrc": msg.avatar.length === 0 ? "contact.svg": msg.avatar,
+                         "avatarSrc": user.avatar.length === 0 ? "contact.svg": user.avatar,
                          "unreadStat": msg.unread})
     }
 

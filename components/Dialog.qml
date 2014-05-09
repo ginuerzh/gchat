@@ -21,11 +21,12 @@ ListView {
     }
     model:ListModel {}
 
-    function addBubble(bubble) {
+    function addBubble(user, bubble) {
         model.append({"str": bubble.text,
                       "isReceive": bubble.jid === jid,
-                      "time": bubble.time,
-                      "avatarSrc": bubble.avatar.length === 0 ? "contact.svg": bubble.avatar})
+                      "time": bubble.time.format("15:04"),
+                      "avatarSrc": user.avatar.length === 0 ? "contact.svg": user.avatar})
+        dialog.positionViewAtEnd()
     }
 }
 

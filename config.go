@@ -12,12 +12,12 @@ type Config struct {
 	EnableProxy bool
 	Proxy       string `short:"p" long:"proxy" description:"Proxy server [ip:port]"`
 	UseSysProxy bool   `short:"a" long:"sproxy" description:"Use system proxy"`
-	UseOldTLS   bool   `short:"t" long:"tls" description:"Use old tls method"`
+	NoTLS       bool   `long:"notls" description:"Do not use tls"`
 	Username    string `long:"user" description:"Username"`
 	Password    string `long:"pass" description:"Password"`
 	AutoLogin   bool
-	EnableDebug bool `short:"d" long:"debug" description:"enable debug" json:"-"`
-	NoGui       bool `long:"nogui" description:"run on command mode" json:"-"`
+	EnableDebug bool `short:"d" long:"debug" description:"Enable debug" json:"-"`
+	NoGui       bool `long:"nogui" description:"Run on command mode" json:"-"`
 }
 
 func (config *Config) Load(filename string) error {
@@ -25,6 +25,7 @@ func (config *Config) Load(filename string) error {
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 
 	return json.NewDecoder(file).Decode(config)
 }
@@ -34,5 +35,7 @@ func (config *Config) Save(filename string) error {
 	if err != nil {
 		return err
 	}
+	defer file.Close()
+
 	return json.NewEncoder(file).Encode(config)
 }
