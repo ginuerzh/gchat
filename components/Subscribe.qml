@@ -1,15 +1,16 @@
 import QtQuick 2.0
 
 Rectangle {
-    id: message
+    id: subscribe
     property int maxWidth
 
-    property string user
+    property string jid
     property string msg
     property string avatar
-    property bool unread
     property string timestamp
-    signal clicked()
+
+    signal accepted(string jid)
+    signal declined(string jid)
 
     Row {
         spacing: 5
@@ -17,7 +18,7 @@ Rectangle {
 
         Rectangle {
             id: avatarIcon
-            height: message.height
+            height: subscribe.height
             width: height
             Image {
                 anchors.fill: parent
@@ -37,8 +38,7 @@ Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width - timeField.width - 5
                     elide: Text.ElideRight
-                    text: user
-                    font.bold: message.unread
+                    text: jid
                 }
 
                 Text {
@@ -47,26 +47,34 @@ Rectangle {
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.rightMargin: 5
-                    font.bold: message.unread
+                    font.bold: true
                 }
             }
 
-            Text {
-                width: parent.width
-                maximumLineCount: 1
-                elide: Text.ElideRight
-                text: msg
-                font.bold: message.unread
-            }
-        }
-    }
+            Row {
+                spacing: 5
+                Text {
+                    width: 140
+                    maximumLineCount: 1
+                    elide: Text.ElideRight
+                    text: msg
+                }
 
-    MouseArea {
-        id: clickable
-        anchors.fill: parent
-        onClicked: {
-            message.unread = false
-            parent.clicked()
+                Button {
+                    text: "Accept"
+                    width: 70
+                    height: 25
+                    color: "palegreen"
+                    onClicked: subscribe.accepted(jid)
+                }
+                Button {
+                    text: "Decline"
+                    width: 70
+                    height: 25
+                    color: "salmon"
+                    onClicked: subscribe.declined(jid)
+                }
+            }
         }
     }
 }

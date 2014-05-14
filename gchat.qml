@@ -82,6 +82,7 @@ MainView {
                     BuddyList {
                         id: buddyList
                         anchors.fill: parent
+                        maxWidth: mainView.width
 
                         onSelected: pageStack.showDialog(jid, name)
                     }
@@ -92,7 +93,9 @@ MainView {
                             iconName: "system-log-out"
                             onTriggered: {
                                 userTabs.logout()
-                                buddyList.model.clear()
+                                buddyList.clearBuddies()
+                                messages.clearMessages()
+
                                 pageStack.clear()
                                 pageStack.push(loginTabs)
                             }

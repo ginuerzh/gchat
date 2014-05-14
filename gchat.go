@@ -34,64 +34,12 @@ func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 }
 
-type Buddy struct {
-	Jid        string
-	Name       string
-	Avatar     string
-	avatarHash string
-	Group      string
-	groups     []string
-	Show       int
-	shows      map[string]int
-	Status     string
-	Dialog     *Dialog
-}
-
-func NewBuddy(jid, name string, groups []string) *Buddy {
-	if name == "" {
-		name = jid
-	}
-	return &Buddy{
-		Jid:    jid,
-		Name:   name,
-		groups: groups,
-		Show:   ShowUnavail,
-		shows:  make(map[string]int),
-		Dialog: NewDialog(jid),
-	}
-}
-
-type BuddyList struct {
-	buddies map[string]*Buddy
-	groups  map[string][]*Buddy
-}
-
-func NewBuddyList() *BuddyList {
-	return &BuddyList{
-		buddies: make(map[string]*Buddy),
-		groups:  make(map[string][]*Buddy),
-	}
-}
-
-func (l *BuddyList) Add(buddy *Buddy) {
-	l.buddies[xmpp.ToJID(buddy.Jid).Bare()] = buddy
-	if len(buddy.groups) == 0 {
-		l.groups["Buddies"] = append(l.groups["Buddies"], buddy)
-		return
-	}
-	for _, group := range buddy.groups {
-		l.groups[group] = append(l.groups[group], buddy)
-	}
-}
-
-func (l *BuddyList) Buddy(jid string) *Buddy {
-	return l.buddies[xmpp.ToJID(jid).Bare()]
-}
-
 type Chat struct {
 	client *client.Client
 	config *Config
 	dir    string
+
+	features []string // server features
 
 	engine *qml.Engine
 	window *qml.Window
@@ -100,8 +48,8 @@ type Chat struct {
 	user    *Buddy
 	//dialogs map[string][]*Message
 
-	pLock *sync.Mutex // mutex lock for presence
-	cLock *sync.Mutex // mutex lock for card
+	lock  *sync.Mutex
+	bLock *sync.Mutex
 }
 
 func NewChat(dataDir string, config *Config) *Chat {
@@ -117,8 +65,8 @@ func NewChat(dataDir string, config *Config) *Chat {
 	return &Chat{
 		config: config,
 		dir:    dataDir,
-		pLock:  &sync.Mutex{},
-		cLock:  &sync.Mutex{},
+		lock:   &sync.Mutex{},
+		bLock:  &sync.Mutex{},
 	}
 }
 
@@ -273,12 +221,14 @@ func (chat *Chat) restoreConfig() {
 		"notls:", chat.config.NoTLS)
 }
 
-func (chat *Chat) addBubble(jid string, bubble *Message) {
+func (chat *Chat) addBubble(jid string, bubble *Message, logToFile bool) {
 	buddy := chat.buddies.Buddy(jid)
 
-	filename := chat.MessageFile(xmpp.ToJID(jid).Bare())
-	if err := buddy.Dialog.Append(filename, bubble); err != nil {
-		log.Println(err)
+	if logToFile {
+		filename := chat.MessageFile(xmpp.ToJID(jid).Bare())
+		if err := buddy.Dialog.Append(filename, bubble); err != nil {
+			log.Println(err)
+		}
 	}
 
 	if bubble.Jid == chat.user.Jid {
@@ -321,15 +271,20 @@ func (chat *Chat) Run() error {
 		chat.client.Close()
 	})
 
+	msgView := chat.ObjectByName("messageView")
+	msgView.On("accepted", func(jid string) {
+		chat.client.Send(xmpp.NewPresence("subscribed", "", jid))
+		chat.client.Send(xmpp.NewPresence("subscribe", "", jid))
+	})
+	msgView.On("declined", func(jid string) {
+		chat.client.Send(xmpp.NewPresence("unsubscribed", "", jid))
+	})
+
 	dialogView := chat.ObjectByName("dialogView")
 	dialogView.On("loaded", func(jid string) {
 		buddy := chat.buddies.Buddy(jid)
 		for _, bubble := range buddy.Dialog.Messages {
-			if bubble.Jid == jid {
-				dialogView.Call("addBubble", buddy, bubble)
-			} else {
-				dialogView.Call("addBubble", chat.user, bubble)
-			}
+			chat.addBubble(jid, bubble, false)
 		}
 	})
 
@@ -340,7 +295,7 @@ func (chat *Chat) Run() error {
 			Text: text,
 			Time: time.Now(),
 		}
-		chat.addBubble(jid, msg)
+		chat.addBubble(jid, msg, true)
 		chat.addMessage(chat.buddies.Buddy(jid), msg)
 	})
 
@@ -379,7 +334,7 @@ func (chat *Chat) login(username, password string, status string) {
 			return
 		}
 
-		user := NewBuddy(cli.Jid.Bare(), "", nil)
+		user := NewBuddy(cli.Jid.Bare(), "", nil, "")
 		user.Show = showPriv(status)
 		chat.Init(user)
 		chat.engine.Context().SetVar("loginUser", user)
@@ -387,45 +342,102 @@ func (chat *Chat) login(username, password string, status string) {
 		chat.ObjectByName("buddyView").Call("setUser", chat.user)
 		chat.ObjectByName("loginPage").Call("logined", true, chat.user.Name, "")
 
-		cli.Send(xmpp.NewIQ("get", client.GenId(), chat.client.Jid.Domain(), &xep.DiscoInfoQuery{}))
-		cli.Send(xmpp.NewIQ("get", client.GenId(), chat.client.Jid.Domain(), &xep.DiscoItemsQuery{}))
+		//cli.Send(xmpp.NewIQ("get", client.GenId(), chat.client.Jid.Domain(), &xep.DiscoInfoQuery{}))
+		//cli.Send(xmpp.NewIQ("get", client.GenId(), chat.client.Jid.Domain(), &xep.DiscoItemsQuery{}))
 
 		cli.Send(xmpp.NewIQ("get", client.GenId(), "", &core.RosterQuery{}))
 		cli.Send(xmpp.NewIQ("get", client.GenId(), "", &xep.VCard{}))
 	})
 
 	cli.OnError(func(err error) {
-		log.Println(err)
+		log.Println(err) // TODO error handling
 	})
 
+	// ping response
+	cli.HandleFunc(xmpp.NSPing+" ping", func(header *core.StanzaHeader, e xmpp.Element) {
+		cli.Send(xmpp.NewIQ("result", header.Ids, header.From, nil))
+	})
+
+	// roster
 	cli.HandleFunc(xmpp.NSRoster+" query", func(header *core.StanzaHeader, e xmpp.Element) {
-		if header.Types != "result" {
+		//fmt.Println(e)
+		if header.Types == "error" {
 			return
 		}
 
-		//fmt.Println(e)
-		for _, item := range e.(*core.RosterQuery).Items {
-			if item.Jid == cli.Jid.Bare() {
-				continue
+		removeBuddy := func(buddy *Buddy) {
+			buddy = chat.buddies.Remove(buddy.Jid)
+			if buddy == nil {
+				return
 			}
 
-			buddy := NewBuddy(item.Jid, item.Name, item.Group)
-			buddy.Avatar, buddy.avatarHash = chat.AvatarFile(item.Jid)
+			chat.lock.Lock()
+			chat.ObjectByName("buddyView").Call("removeBuddy", buddy)
+			chat.lock.Unlock()
+			chat.ObjectByName("messageView").Call("removeMessage", buddy.Jid)
+		}
 
-			buddy.Dialog.Load(chat.MessageFile(item.Jid))
+		initBuddy := func(buddy *Buddy) {
+			buddy.Avatar, buddy.avatarHash = chat.AvatarFile(buddy.Jid)
+			buddy.Dialog.Load(chat.MessageFile(buddy.Jid))
 
 			if len(buddy.Dialog.Messages) > 0 {
-				chat.addMessage(buddy, buddy.Dialog.Messages[len(buddy.Dialog.Messages)-1])
+				chat.addMessage(buddy, buddy.Dialog.Messages[len(buddy.Dialog.Messages)-1]) // show the last message
 			}
+		}
 
+		if header.Types == "set" {
+			for _, item := range e.(*core.RosterQuery).Items {
+				switch item.Subscription {
+				case "remove":
+					removeBuddy(NewBuddy(item.Jid, item.Name, item.Group, item.Subscription))
+				case "none":
+					break
+				default:
+					chat.bLock.Lock()
+					buddy := chat.buddies.Buddy(item.Jid)
+					if buddy != nil {
+						buddy.Name = item.Name
+						buddy.Groups = item.Group
+						buddy.Subscription = item.Subscription
+
+						chat.lock.Lock()
+						chat.ObjectByName("buddyView").Call("updateBuddy", buddy)
+						chat.lock.Unlock()
+
+						chat.bLock.Unlock()
+						break
+					}
+
+					buddy = NewBuddy(item.Jid, item.Name, item.Group, item.Subscription)
+
+					initBuddy(buddy)
+					chat.buddies.Add(buddy)
+					buddy.Group = "Buddies"
+					chat.lock.Lock()
+					chat.ObjectByName("buddyView").Call("addBuddy", buddy)
+					chat.lock.Unlock()
+
+					chat.bLock.Unlock()
+				}
+			}
+			return
+		}
+
+		for _, item := range e.(*core.RosterQuery).Items {
+			if item.Jid == cli.Jid.Bare() || chat.buddies.Buddy(item.Jid) != nil {
+				continue
+			}
+			buddy := NewBuddy(item.Jid, item.Name, item.Group, item.Subscription)
+			initBuddy(buddy)
 			chat.buddies.Add(buddy)
 		}
 
 		buddyView := chat.ObjectByName("buddyView")
-		for group, buddies := range chat.buddies.groups {
+		for group, buddies := range chat.buddies.Groups {
 			for _, buddy := range buddies {
 				buddy.Group = group
-				buddyView.Call("addBuddy", buddy)
+				buddyView.Call("appendBuddy", buddy)
 			}
 		}
 
@@ -433,10 +445,54 @@ func (chat *Chat) login(username, password string, status string) {
 	})
 
 	cli.HandleFunc(xmpp.NSDiscoItems+" query", func(header *core.StanzaHeader, e xmpp.Element) {
-		fmt.Println(e)
+		//fmt.Println(e)
+		if header.Types == "error" {
+			return
+		}
+
+		for _, item := range e.(*xep.DiscoItemsQuery).Items {
+			cli.Send(xmpp.NewIQ("get", client.GenId(), item.Jid, new(xep.DiscoInfoQuery)))
+		}
 	})
 	cli.HandleFunc(xmpp.NSDiscoInfo+" query", func(header *core.StanzaHeader, e xmpp.Element) {
-		fmt.Println(e)
+		//fmt.Println(e)
+
+		if header.Types == "error" {
+			return
+		}
+		query := e.(*xep.DiscoInfoQuery)
+
+		for _, id := range query.Identities {
+			// See http://xmpp.org/registrar/disco-categories.html
+			switch id.Category + " " + id.Type {
+			case "server im":
+				for _, feature := range query.Features {
+					chat.features = append(chat.features, feature.Var)
+				}
+			case "conference text":
+				log.Println("find conference", id.Name, header.From)
+				iq, err := cli.SendIQ(xmpp.NewIQ("get", client.GenId(), header.From, new(xep.DiscoItemsQuery)))
+				if err != nil {
+					log.Println(err)
+					break
+				}
+				if err = iq.Error(); err != nil {
+					log.Println(err)
+					break
+				}
+
+				query := iq.E()[0].(*xep.DiscoItemsQuery)
+
+				for _, item := range query.Items {
+					log.Println("find chat room", item.Jid, item.Name)
+				}
+			case "directory chatroom":
+
+			case "pubsub service":
+			case "proxy bytestreams":
+
+			}
+		}
 	})
 
 	cli.HandleFunc(xmpp.NSClient+" message", func(header *core.StanzaHeader, e xmpp.Element) {
@@ -458,12 +514,26 @@ func (chat *Chat) login(username, password string, status string) {
 			if chat.ObjectByName("dialogView").Bool("show") {
 				msg.Unread = false
 			}
-			chat.addBubble(msg.Jid, msg)
+			chat.addBubble(msg.Jid, msg, true)
 			chat.addMessage(chat.buddies.Buddy(msg.Jid), msg)
 		}
 	})
 
 	cli.HandleFunc(xmpp.NSClient+" presence", func(header *core.StanzaHeader, e xmpp.Element) {
+		switch header.Types {
+		case "subscribe":
+			msg := &Message{
+				Jid:  xmpp.ToJID(header.From).Bare(),
+				Text: "Subscribe",
+				Time: time.Now(),
+			}
+			chat.ObjectByName("messageView").Call("addSubscribe", msg)
+		case "subscribed", "unsubscribe":
+			return
+		default:
+			break
+		}
+
 		buddy := chat.buddies.Buddy(header.From)
 		if buddy == nil {
 			return
@@ -501,9 +571,9 @@ func (chat *Chat) login(username, password string, status string) {
 			}
 		}
 
-		chat.pLock.Lock()
+		chat.lock.Lock()
 		chat.ObjectByName("buddyView").Call("updateBuddy", buddy)
-		chat.pLock.Unlock()
+		chat.lock.Unlock()
 	})
 
 	cli.HandleFunc(xmpp.NSVcardTemp+" vCard", func(header *core.StanzaHeader, e xmpp.Element) {
@@ -537,9 +607,9 @@ func (chat *Chat) login(username, password string, status string) {
 		if len(header.From) == 0 {
 			chat.ObjectByName("buddyView").Call("setUser", buddy)
 		} else {
-			chat.cLock.Lock()
+			chat.lock.Lock()
 			chat.ObjectByName("buddyView").Call("updateBuddy", buddy)
-			chat.cLock.Unlock()
+			chat.lock.Unlock()
 		}
 	})
 	go cli.Run()

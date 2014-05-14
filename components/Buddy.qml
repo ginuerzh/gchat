@@ -2,6 +2,8 @@ import QtQuick 2.0
 
 Rectangle {
     id: buddy
+
+    property int maxWidth
     property string name
     property string avatar
     property int show
@@ -38,6 +40,7 @@ Rectangle {
         spacing: 10
         anchors.verticalCenter: parent.verticalCenter
         Rectangle {
+            id: avatarWrapper
             height: buddy.height - 10
             width: height + 5
             Image {
@@ -47,23 +50,30 @@ Rectangle {
             }
         }
 
-        Row {
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 5
+        Column {
+            Row {
+                spacing: 5
 
-            Rectangle {
-                id: statusIcon
-                width: 10
-                height: 10
-                radius: 5
-                //antialiasing: true
-                anchors.verticalCenter: parent.verticalCenter
+                Rectangle {
+                    id: statusIcon
+                    width: 10
+                    height: 10
+                    radius: 5
+                    //antialiasing: true
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Text {
+                    text: name
+                    elide: Text.ElideRight
+                    font.pointSize: 14
+                }
             }
-
             Text {
-                text: name
+                width :maxWidth - avatarWrapper.width - 15
+                maximumLineCount: 1
                 elide: Text.ElideRight
-                font.pointSize: 14
+                text: status
             }
         }
     }

@@ -5,14 +5,16 @@ ListView {
     id: buddylist
     spacing: 1
     signal selected(string jid, string name)
+    property int maxWidth
 
     delegate: Buddy {
         width: buddylist.width
-        height: 64
+        height: 60
         name: buddyName
         show: showText
         status: statusText
         avatar: avatarSrc
+        maxWidth: buddyList.maxWidth
         onClicked: {
             buddylist.selected(jid, name)
         }
@@ -21,7 +23,8 @@ ListView {
     header: Component {
         Buddy {
             width: buddylist.width
-            height: 64
+            maxWidth: buddyList.maxWidth
+            height: 60
         }
     }
 
@@ -44,32 +47,64 @@ ListView {
     }
 
     function setUser(u) {
-        headerItem.name = u.name
+        headerItem.name = u.name.length === 0 ? u.jid : u.name
         headerItem.show = u.show
         headerItem.status = u.status
         headerItem.avatar = u.avatar.length === 0 ? "contact.svg": u.avatar
     }
 
     function addBuddy(buddy) {
+        var pos = 0
+        for (var i = 0; i < model.count; i++) {
+            if (model.get(i).group === buddy.group) {
+                pos = i
+                break
+            }
+        }
+
+        model.insert(pos, {"jid": buddy.jid,
+                         "buddyName": buddy.name.length === 0 ? buddy.jid : buddy.name,
+                         "group": buddy.group,
+                         "avatarSrc": buddy.avatar.length === 0 ? "contact.svg": buddy.avatar,
+                         "showText": buddy.show,
+                         "statusText":buddy.status})
+
+    }
+
+    function appendBuddy(buddy) {
+       // console.log(buddy.groups)
         model.append({"jid":buddy.jid,
-                      "buddyName": buddy.name,
+                      "buddyName": buddy.name.length === 0 ? buddy.jid : buddy.name,
                       "group": buddy.group,
                       "avatarSrc": buddy.avatar.length === 0 ? "contact.svg": buddy.avatar,
                       "showText": buddy.show,
                       "statusText": buddy.status})
     }
 
+    function removeBuddy(buddy) {
+        for (var i = 0; i < model.count; i++) {
+            if (model.get(i).jid === buddy.jid) {
+                model.remove(i)
+            }
+        }
+    }
+
+    function clearBuddies() {
+        buddylist.model.clear()
+    }
+
     function updateBuddy(buddy) {
         var index = 0
         var o = {"jid":buddy.jid,
-            "buddyName": buddy.name,
+            "buddyName": buddy.name.length === 0 ? buddy.jid : buddy.name,
             "group": buddy.group,
             "avatarSrc": buddy.avatar.length === 0 ? "contact.svg": buddy.avatar,
             "showText": buddy.show,
             "statusText": buddy.status}
 
         for (var i = 0; i < model.count; i++) {
-            if (model.get(i).jid === buddy.jid) {
+            var m = model.get(i)
+            if (m.jid === buddy.jid && m.group === buddy.group) {
                 model.remove(i)
                 break
             }

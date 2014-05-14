@@ -7,7 +7,7 @@ xmpp im client for ubuntu touch
 使用qml + golang (感谢go-qml项目:https://github.com/go-qml/qml)
 
 此应用依赖于ubuntu-sdk和golang
-所以请先安装以上两个必品：
+所以请先安装以上两个必需品：
 
 $ sudo apt-get install ubuntu-sdk qtbase5-private-dev qtdeclarative5-private-dev libqt5opengl5-dev
 
