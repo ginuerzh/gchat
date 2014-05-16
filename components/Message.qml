@@ -35,7 +35,7 @@ Rectangle {
                 Text {
                     anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - timeField.width - 5
+                    width: parent.width - timeField.width - 10
                     elide: Text.ElideRight
                     text: user
                     font.bold: message.unread
@@ -52,7 +52,7 @@ Rectangle {
             }
 
             Text {
-                width: parent.width
+                width: parent.width - 5
                 maximumLineCount: 1
                 elide: Text.ElideRight
                 text: msg

@@ -74,36 +74,6 @@ MainView {
             id: userTabs
             signal logout()
             visible: false
-
-            Tab {
-                id:buddyTab
-                title: i18n.tr("Buddies")
-                Page {
-                    BuddyList {
-                        id: buddyList
-                        anchors.fill: parent
-                        maxWidth: mainView.width
-
-                        onSelected: pageStack.showDialog(jid, name)
-                    }
-
-                    tools: ToolbarItems {
-                        ToolbarButton {
-                            text: "Logout"
-                            iconName: "system-log-out"
-                            onTriggered: {
-                                userTabs.logout()
-                                buddyList.clearBuddies()
-                                messages.clearMessages()
-
-                                pageStack.clear()
-                                pageStack.push(loginTabs)
-                            }
-                        }
-                    }
-                }
-            }
-
             Tab {
                 id: messageTab
                 title: i18n.tr("Messages")
@@ -113,18 +83,112 @@ MainView {
                         anchors.fill: parent
                         maxWidth: mainView.width
 
-                        onSelected: pageStack.showDialog(jid, name)
+                        onSelected: pageStack.showChat(jid, name)
+                    }
+
+                     tools: ToolbarItems {
+                         locked: true
+                         opened: false
+                     }
+                }
+            }
+            Tab {
+                id:buddyTab
+                title: i18n.tr("Buddies")
+                Page {
+                    BuddyList {
+                        id: buddyList
+                        anchors.fill: parent
+                        maxWidth: mainView.width
+
+                        onSelected: pageStack.showChat(jid, name)
+                    }
+
+                    tools: ToolbarItems {
+                        ToolbarButton {
+                            text: "Logout"
+                            iconName: "system-log-out"
+                            onTriggered: {
+                                mainView.logout()
+                            }
+                        }
+                    }
+                }
+            }
+            Tab {
+                id: roomTab
+                title:i18n.tr("Chat Rooms")
+                Page {
+                    RoomList {
+                        id: roomList
+                        anchors.fill: parent
+                        maxWidth: mainView.width
+                        onSelected: pageStack.showRoomInfo(jid, name)
+                    }
+                }
+            }
+        }
+
+        Tabs {
+            objectName: "chatRoomTabs"
+            id: chatRoomTabs
+            visible: false
+            Tab {
+                id: roomInfoTab
+                title: i18n.tr("Chat Room Info")
+                Page {
+                    RoomInfo {
+                        id: roomInfo
+                        anchors.fill: parent
+                        maxWidth: mainView.width
+                    }
+                }
+            }
+            Tab {
+                title: i18n.tr("Chat")
+                Page {
+                    MUC {
+                        objectName: "groupChatView"
+                        id: groupChat
+                        anchors.fill: parent
+                        anchors.margins: 5
+                        maxWidth: mainView.width
+                    }
+                    tools: ToolbarItems {
+                        locked: true
+                        opened: true
+
+                        TextField {
+                            id: mucMsgInput
+                            anchors.verticalCenter: parent.verticalCenter
+                            placeholderText: "Input chat message"
+
+                            onAccepted: mucSend.triggered(null)
+                        }
+                        ToolbarButton {
+                            objectName: "mucSend"
+                            id: mucSend
+                            text: "Send"
+                            signal sended(string jid, string text)
+
+                            iconName: "media-playback-start"
+                            onTriggered: {
+                                if (mucMsgInput.text.length > 0)
+                                    sended(groupChat.jid, mucMsgInput.text)
+                                mucMsgInput.text = ""
+                            }
+                        }
                     }
                 }
             }
         }
 
         Page {
-            id: dialogPage
-            title: i18n.tr("Dialog")
+            id: chatPage
+            title: i18n.tr("Chat")
             visible: false
-            Dialog {
-                id: dialog
+            Chat {
+                id: chat
                 anchors.fill: parent
                 anchors.margins: 5
                 maxWidth: mainView.width
@@ -135,39 +199,59 @@ MainView {
                 opened: true
 
                 TextField {
-                    objectName: "msgInput"
                     id: msgInput
                     anchors.verticalCenter: parent.verticalCenter
                     placeholderText: "Input chat message"
 
-                    onAccepted: sendConfirm.triggered(null)
+                    onAccepted: chatSend.triggered(null)
                 }
                 ToolbarButton {
-                    objectName: "sendConfirm"
-                    id: sendConfirm
+                    objectName: "chatSend"
+                    id: chatSend
                     text: "Send"
                     signal sended(string jid, string text)
 
                     iconName: "media-playback-start"
                     onTriggered: {
                         if (msgInput.text.length > 0)
-                            sended(dialog.jid, msgInput.text)
+                            sended(chat.jid, msgInput.text)
                         msgInput.text = ""
                     }
                 }
             }
         }
 
-        function showDialog(jid, name) {
-            dialogPage.title = i18n.tr(name)
-            pageStack.push(dialogPage)
-            if (dialog.jid !== jid) {
-                dialog.model.clear()
-                dialog.jid = jid
-                dialog.loaded(jid)
+        function showChat(jid, name) {
+            chatPage.title = i18n.tr(name)
+            pageStack.push(chatPage)
+            if (chat.jid !== jid) {
+                chat.model.clear()
+                chat.jid = jid
+                chat.loaded(jid)
             }
             messages.markRead(jid)
         }
+
+        function showRoomInfo(jid, name) {
+            roomInfoTab.title = i18n.tr(jid.split("@", 1)[0])
+            pageStack.push(chatRoomTabs)
+            if (roomInfo.jid !== jid) {
+                roomInfo.model.clear()
+                groupChat.jid = jid
+                roomInfo.jid = jid
+                roomInfo.name = name
+                roomInfo.loaded(jid)
+            }
+        }
     }
 
+    function logout() {
+        userTabs.logout()
+        buddyList.clearBuddies()
+        messages.clearMessages()
+        roomList.clearRooms()
+
+        pageStack.clear()
+        pageStack.push(loginTabs)
+    }
 }

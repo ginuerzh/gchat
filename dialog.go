@@ -55,6 +55,9 @@ func (dialog *Dialog) Append(filename string, messages ...*Message) error {
 }
 
 func (dialog *Dialog) Load(filename string) error {
+	if len(filename) == 0 {
+		return nil
+	}
 	file, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -77,6 +80,10 @@ func (dialog *Dialog) Load(filename string) error {
 }
 
 func (dialog *Dialog) Save(filename string) error {
+	if len(filename) == 0 {
+		return nil
+	}
+
 	file, err := os.Create(filename)
 	if err != nil {
 		return err

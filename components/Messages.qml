@@ -4,7 +4,7 @@ import QtQuick 2.0
 ListView {
     objectName: "messageView"
     id: messages
-    spacing: 1
+    spacing: 2
     property int maxWidth
     signal selected(string jid, string name)
     signal accepted(string jid)
@@ -41,7 +41,7 @@ ListView {
                 msg: msgText
                 Rectangle {
                     width: parent.width
-                    height: 1
+                    height: 2
                     anchors.bottom: parent.bottom
                     color: "#f0f0f0"
                 }
@@ -79,7 +79,7 @@ ListView {
         model.insert(0, {"jid":user.jid,
                          "name": user.name.length === 0 ? user.jid : user.name,
                          "time": msg.time.format("01-02 15:04"),
-                         "msgText": msg.text,
+                         "msgText": msg.text.trim(),
                          "avatarSrc": user.avatar.length === 0 ? "contact.svg": user.avatar,
                          "unreadStat": msg.unread})
     }

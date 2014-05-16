@@ -3,7 +3,7 @@ import QtQuick 2.0
 ListView {
     objectName: "buddyView"
     id: buddylist
-    spacing: 1
+    spacing: 2
     signal selected(string jid, string name)
     property int maxWidth
 
