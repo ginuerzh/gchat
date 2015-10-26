@@ -6,6 +6,8 @@ xmpp im client for ubuntu touch
 一个xmpp 即时通讯客户端，当然也可以用作google talk客户端。
 使用qml + golang (感谢go-qml项目:https://github.com/go-qml/qml)
 
+demo video: https://www.youtube.com/watch?v=L9LZ9a-LPq8
+
 此应用依赖于ubuntu-sdk和golang
 所以请先安装以上两个必需品：
 
